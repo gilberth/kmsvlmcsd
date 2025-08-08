@@ -6,6 +6,7 @@
 #define CONFIG "config.h"
 #endif // CONFIG
 #include CONFIG
+#include "secure_helpers.h"
 
 #if defined(USE_MSRPC) && !defined(_WIN32) && !defined(__CYGWIN__)
 #error Microsoft RPC is only available on Windows and Cygwin
@@ -874,6 +875,12 @@ static BOOL readIniFile(const uint_fast8_t pass)
 	for (lineNumber = 1; (s = fgets(line, sizeof(line), f)); lineNumber++)
 	{
 		size_t i;
+		
+		// Validate input line
+		if (!validate_string_input(line, sizeof(line) - 1)) {
+			printerrorf("Warning: %s line %u: Invalid characters detected. Line skipped.\n", fn_ini, lineNumber);
+			continue;
+		}
 
 		for (i = strlen(line); i > 0; i--)
 		{

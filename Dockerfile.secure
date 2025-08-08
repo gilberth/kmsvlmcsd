@@ -1,0 +1,94 @@
+# Multi-stage build for vlmcsd with enhanced security
+# Build stage
+FROM alpine:3.22 AS builder
+
+# Install build dependencies with specific versions for reproducibility
+RUN apk add --no-cache \
+    gcc=14.2.0-r6 \
+    musl-dev=1.2.5-r10 \
+    make=4.4.1-r3 \
+    linux-headers=6.14.2-r0 \
+    && rm -rf /var/cache/apk/*
+
+# Create build user for security
+RUN adduser -D -s /bin/sh -u 1001 builder
+
+# Set working directory
+WORKDIR /build
+
+# Copy source code with proper ownership
+COPY --chown=builder:builder . .
+
+# Create build directories with proper permissions
+RUN mkdir -p bin build lib && chown builder:builder bin build lib
+
+# Switch to build user
+USER builder
+
+# Build vlmcsd with security-hardened flags
+RUN make \
+    CC=gcc \
+    CFLAGS="-O2 -g -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security -Wall -Wextra -Werror=format-security -Werror=implicit-function-declaration" \
+    LDFLAGS="-pie -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack" \
+    PROGRAM_NAME=/tmp/vlmcsd \
+    CLIENT_NAME=/tmp/vlmcs
+
+# Runtime stage with minimal attack surface
+FROM alpine:3.22
+
+# Add security-focused metadata
+LABEL maintainer="vlmcsd" \
+      description="KMS server emulator - Security Hardened" \
+      version="latest" \
+      security.scan="enabled" \
+      org.opencontainers.image.source="https://github.com/vlmcsd/vlmcsd"
+
+# Install only essential runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates=20250619-r0 \
+    && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
+
+# Create dedicated user with restricted permissions
+RUN addgroup -g 1688 -S vlmcsd \
+    && adduser -u 1688 -S -G vlmcsd -s /sbin/nologin -h /nonexistent vlmcsd
+
+# Copy binaries from builder stage with minimal permissions
+COPY --from=builder --chown=root:root /tmp/vlmcsd /usr/bin/vlmcsd
+COPY --from=builder --chown=root:root /tmp/vlmcs /usr/bin/vlmcs
+
+# Copy configuration with read-only permissions
+COPY --chown=root:vlmcsd etc/vlmcsd.ini /etc/vlmcsd.ini
+RUN chmod 640 /etc/vlmcsd.ini
+
+# Set strict permissions on binaries
+RUN chmod 755 /usr/bin/vlmcsd /usr/bin/vlmcs \
+    && chmod u-s,g-s /usr/bin/vlmcsd /usr/bin/vlmcs
+
+# Remove unnecessary packages and create read-only filesystem structure
+RUN rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /usr/share/man/* /usr/share/doc/* \
+    && mkdir -p /var/log/vlmcsd \
+    && chown vlmcsd:vlmcsd /var/log/vlmcsd \
+    && chmod 750 /var/log/vlmcsd
+
+# Expose only the necessary port
+EXPOSE 1688/tcp
+
+# Switch to non-root user
+USER vlmcsd:vlmcsd
+
+# Set secure environment variables
+ENV PATH="/usr/bin" \
+    HOME="/nonexistent" \
+    SHELL="/sbin/nologin"
+
+# Use exec form and avoid shell injection
+CMD ["/usr/bin/vlmcsd", "-D", "-e", "-l", "/var/log/vlmcsd/vlmcsd.log"]
+
+# Enhanced health check with timeout
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD /usr/bin/vlmcs -l 3 127.0.0.1 || exit 1
+
+# Security labels
+LABEL security.capabilities="drop-all" \
+      security.no-new-privileges="true" \
+      security.read-only-root-filesystem="true"

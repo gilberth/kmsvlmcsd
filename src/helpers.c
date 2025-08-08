@@ -14,6 +14,7 @@
 #define CONFIG "config.h"
 #endif // CONFIG
 #include CONFIG
+#include "secure_helpers.h"
 
 #ifndef _WIN32
 #include <errno.h>
@@ -362,9 +363,7 @@ __noreturn void OutOfMemory(void)
 
 void* vlmcsd_malloc(size_t len)
 {
-	void* buf = malloc(len);
-	if (!buf) OutOfMemory();
-	return buf;
+	return secure_malloc(len);
 }
 
 char* vlmcsd_strdup(const char* src)

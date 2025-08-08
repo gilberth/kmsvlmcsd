@@ -2,7 +2,7 @@
 #define CONFIG "config.h"
 #endif // CONFIG
 #include CONFIG
-
+#include "secure_helpers.h"
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -268,7 +268,7 @@ static char* itoc(char *const c, const int i, uint_fast8_t digits)
 {
 	char formatString[8];
 	if (digits > 9) digits = 0;
-	strcpy(formatString, "%");
+	SECURE_STRCPY(formatString, "%");
 
 	if (digits)
 	{
@@ -277,9 +277,8 @@ static char* itoc(char *const c, const int i, uint_fast8_t digits)
 		formatString[3] = 0;
 	}
 
-	strcat(formatString, "u");
-	sprintf(c, formatString, i);
-	return c;
+	SECURE_STRCAT(formatString, "u");
+	SECURE_SNPRINTF(c, formatString, i);	return c;
 }
 
 static uint8_t getRandomServerType()
@@ -315,27 +314,27 @@ static void generateRandomPid(const int index, char *const szPid, int16_t lang, 
 	}
 
 
-	strcpy(szPid, itoc(numberBuffer, getPlatformId(hostBuild), 5));
-	strcat(szPid, "-");
+	SECURE_STRCPY(szPid, itoc(numberBuffer, getPlatformId(hostBuild), 5));
+	SECURE_STRCAT(szPid, "-");
 
 	//if (index > 3) index = 0;
 
 	PCsvlkData_t csvlkData = &KmsData->CsvlkData[index];
-	strcat(szPid, itoc(numberBuffer, csvlkData->GroupId, 5));
-	strcat(szPid, "-");
+	SECURE_STRCAT(szPid, itoc(numberBuffer, csvlkData->GroupId, 5));
+	SECURE_STRCAT(szPid, "-");
 
 	const int keyId = (rand32() % (csvlkData->MaxKeyId - csvlkData->MinKeyId)) + csvlkData->MinKeyId;
-	strcat(szPid, itoc(numberBuffer, keyId / 1000000, 3));
-	strcat(szPid, "-");
-	strcat(szPid, itoc(numberBuffer, keyId % 1000000, 6));
-	strcat(szPid, "-03-");
+	SECURE_STRCAT(szPid, itoc(numberBuffer, keyId / 1000000, 3));
+	SECURE_STRCAT(szPid, "-");
+	SECURE_STRCAT(szPid, itoc(numberBuffer, keyId % 1000000, 6));
+	SECURE_STRCAT(szPid, "-03-");
 
 	if (lang < 1) lang = LcidList[rand() % vlmcsd_countof(LcidList)];
-	strcat(szPid, itoc(numberBuffer, lang, 0));
-	strcat(szPid, "-");
+	SECURE_STRCAT(szPid, itoc(numberBuffer, lang, 0));
+	SECURE_STRCAT(szPid, "-");
 
-	strcat(szPid, itoc(numberBuffer, hostBuild, 0));
-	strcat(szPid, ".0000-");
+	SECURE_STRCAT(szPid, itoc(numberBuffer, hostBuild, 0));
+	SECURE_STRCAT(szPid, ".0000-");
 
 	const time_t hostBuildReleaseDate = getReleaseDate(hostBuild);
 	const time_t minTime = csvlkData->ReleaseDate < hostBuildReleaseDate ? hostBuildReleaseDate : csvlkData->ReleaseDate;
@@ -353,9 +352,8 @@ static void generateRandomPid(const int index, char *const szPid, int16_t lang, 
 	time_t kmsTime = (rand32() % (maxTime - minTime)) + minTime;
 	struct tm *pidTime = gmtime(&kmsTime);
 
-	strcat(szPid, itoc(numberBuffer, pidTime->tm_yday + 1, 3));
-	strcat(szPid, itoc(numberBuffer, pidTime->tm_year + 1900, 4));
-}
+	SECURE_STRCAT(szPid, itoc(numberBuffer, pidTime->tm_yday + 1, 3));
+	SECURE_STRCAT(szPid, itoc(numberBuffer, pidTime->tm_year + 1900, 4));}
 
 
 /*
