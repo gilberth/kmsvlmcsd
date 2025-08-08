@@ -12,7 +12,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE: kms
-  IMAGE_SECURE_SUFFIX: -secure
 
 jobs:
   build-and-push:
@@ -59,24 +58,11 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Extract metadata for secure image
-        id: meta-secure
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/${{ env.IMAGE }}${{ env.IMAGE_SECURE_SUFFIX }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build & Push (standard)
+      - name: Build & Push (secure only)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.secure
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -84,31 +70,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & Push (secure)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile.secure
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta-secure.outputs.tags }}
-          labels: ${{ steps.meta-secure.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Update README with registry information
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
         run: |
-          echo "## Docker Images" > docker-info.md
+          echo "## Docker Image" > docker-info.md
           echo "" >> docker-info.md
-          echo "The following Docker images are available on GitHub Container Registry:" >> docker-info.md
+          echo "The Docker image is available on GitHub Container Registry:" >> docker-info.md
           echo "" >> docker-info.md
-          echo "### Standard Image" >> docker-info.md
           echo '```bash' >> docker-info.md
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/${{ env.IMAGE }}:latest" >> docker-info.md
           echo '```' >> docker-info.md
           echo "" >> docker-info.md
-          echo "### Secure Image (with SSL support)" >> docker-info.md
-          echo '```bash' >> docker-info.md
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/${{ env.IMAGE }}${{ env.IMAGE_SECURE_SUFFIX }}:latest" >> docker-info.md
-          echo '```' >> docker-info.md
+          echo "This image includes SSL support and enhanced security features." >> docker-info.md
