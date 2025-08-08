@@ -1,27 +1,35 @@
---- vlmcsd - KMS Server
+# 🖥️ vlmcsd – KMS Server
 
-Un servidor KMS (Key Management Service) emulador que permite activar productos Microsoft Windows y Office. Emula un servidor KMS en tu red local, permitiendo a los clientes activar su software sin conectar a los servidores de Microsoft.
+**vlmcsd** es un servidor KMS (*Key Management Service*) emulador que permite activar productos **Microsoft Windows** y **Office**.  
+Emula un servidor KMS en tu red local, permitiendo que los clientes activen su software sin conectarse a los servidores de Microsoft.
+
+---
+
+## ✨ Características
+
+- **Ligero** – Imagen Docker optimizada con soporte SSL.  
+- **Multiplataforma** – Soporte para arquitecturas `amd64` y `arm64`.  
+- **Autocontenido** – No requiere dependencias externas.  
+- **Seguro** – Construido con `Dockerfile.secure` y buenas prácticas de seguridad.  
+- **Persistente** – Configuración con reinicio automático.  
+
+---
 
 ## 🚀 Despliegue Rápido con Docker
 
-### 1. Configuración Requerida
+### 1️⃣ Requisitos Previos
+- **Docker** instalado en el sistema.
+- **Puerto 1688** abierto (puerto estándar para KMS, configurable).
+- **Acceso a red local** para los clientes que requieran activación.
 
-Para desplegar vlmcsd necesitarás:
-- **Docker**: Motor de contenedores instalado
-- **Puerto 1688**: Puerto estándar para KMS (configurable)
-- **Red local**: Acceso de red para los clientes que necesitan activación
+### 2️⃣ Comando de despliegue rápido
+\`\`\`bash
+docker run -d   --name vlmcsd   --restart unless-stopped   -p 1688:1688   ghcr.io/gilberth/kms:latest
+\`\`\`
 
-### 2. Desplegar el Servidor KMS
-
-```bash
-# Despliegue rápido de una línea
-docker run -d --name vlmcsd --restart unless-stopped -p 1688:1688 ghcr.io/gilberth/kms:latest
-```
-
-### 3. Verificar el Despliegue
-
-```bash
-# Verificar que el contenedor está ejecutándose
+### 3️⃣ Verificación
+\`\`\`bash
+# Verificar que el contenedor está en ejecución
 docker ps
 
 # Ver logs del servidor
@@ -29,28 +37,21 @@ docker logs vlmcsd
 
 # Probar el servidor
 docker exec vlmcsd /usr/bin/vlmcs -v localhost
-```
+\`\`\`
+
+---
 
 ## 🐳 Opciones de Despliegue
 
-### Despliegue Básico
-```bash
-# Pull de la imagen
+### 📦 Despliegue Básico
+\`\`\`bash
 docker pull ghcr.io/gilberth/kms:latest
+docker run -d   --name vlmcsd   --restart unless-stopped   -p 1688:1688   ghcr.io/gilberth/kms:latest
+\`\`\`
 
-# Ejecutar con auto-reinicio
-docker run -d \
-  --name vlmcsd \
-  --restart unless-stopped \
-  -p 1688:1688 \
-  ghcr.io/gilberth/kms:latest
-```
-
-### Despliegue con Docker Compose
-
-Crea un archivo `docker-compose.yml`:
-
-```yaml
+### 📄 Docker Compose
+Archivo \`docker-compose.yml\`:
+\`\`\`yaml
 version: '3.8'
 services:
   vlmcsd:
@@ -62,154 +63,103 @@ services:
     # Opcional: configuración personalizada
     # volumes:
     #   - ./vlmcsd.ini:/etc/vlmcsd.ini:ro
-```
-
-Luego ejecuta:
-```bash
+\`\`\`
+Ejecutar:
+\`\`\`bash
 docker-compose up -d
-```
+\`\`\`
 
-### Configuración Avanzada
-
-```bash
-# Con configuración personalizada
-docker run -d \
-  --name vlmcsd \
-  --restart unless-stopped \
-  -p 1688:1688 \
-  -v /ruta/a/vlmcsd.ini:/etc/vlmcsd.ini:ro \
-  ghcr.io/gilberth/kms:latest
+### ⚙️ Configuración Avanzada
+\`\`\`bash
+# Con archivo de configuración
+docker run -d   --name vlmcsd   --restart unless-stopped   -p 1688:1688   -v /ruta/a/vlmcsd.ini:/etc/vlmcsd.ini:ro   ghcr.io/gilberth/kms:latest
 
 # Con puerto personalizado
-docker run -d \
-  --name vlmcsd \
-  --restart unless-stopped \
-  -p 1689:1688 \
-  ghcr.io/gilberth/kms:latest
-```
+docker run -d   --name vlmcsd   --restart unless-stopped   -p 1689:1688   ghcr.io/gilberth/kms:latest
+\`\`\`
 
-## 🛠️ Herramientas Disponibles
+---
 
-### Activación de Clientes
+## 🛠️ Activación de Clientes
 
-**Windows:**
-```cmd
-# Configurar servidor KMS
+### 💻 Windows
+\`\`\`cmd
 slmgr /skms TU_IP_SERVIDOR:1688
-
-# Activar Windows
 slmgr /ato
-
-# Verificar estado de activación
 slmgr /xpr
-```
+\`\`\`
 
-**Office:**
-```cmd
-# Configurar servidor KMS (Office 2019/2021)
+### 📄 Office 2019/2021
+\`\`\`cmd
 cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /sethst:TU_IP_SERVIDOR
-
-# Activar Office
 cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /act
-
-# Verificar estado
 cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /dstatus
-```
+\`\`\`
 
-### Gestión del Contenedor
+---
 
-```bash
-# Verificar estado
-docker ps
+## 📋 Gestión del Contenedor
+\`\`\`bash
+docker ps                  # Ver estado
+docker stop vlmcsd         # Detener
+docker start vlmcsd        # Iniciar
+docker restart vlmcsd      # Reiniciar
+docker logs -f vlmcsd      # Logs en tiempo real
+docker rm vlmcsd           # Eliminar
+\`\`\`
 
-# Detener servidor
-docker stop vlmcsd
+---
 
-# Iniciar servidor
-docker start vlmcsd
-
-# Reiniciar servidor
-docker restart vlmcsd
-
-# Ver logs en tiempo real
-docker logs -f vlmcsd
-
-# Eliminar contenedor
-docker rm vlmcsd
-```
-
-### Pruebas y Monitoreo
-
-```bash
-# Probar con cliente incluido
+## 🔍 Pruebas y Monitoreo
+\`\`\`bash
 docker exec vlmcsd /usr/bin/vlmcs -v localhost
-
-# Probar desde host (si vlmcs está instalado)
 vlmcs -v TU_IP_SERVIDOR
-
-# Verificar conectividad de red
 telnet TU_IP_SERVIDOR 1688
-```
+\`\`\`
 
-## ⚡ Características
+---
 
-- **Ligero**: Imagen Docker optimizada con soporte SSL
-- **Multiplataforma**: Soporte para arquitecturas amd64 y arm64
-- **Autocontenido**: No requiere dependencias externas
-- **Seguro**: Construido con `Dockerfile.secure` con características de seguridad mejoradas
-- **Persistente**: Configurado con políticas de reinicio automático
-
-## 📋 Construcción desde Código Fuente
+## 🏗️ Construcción desde Código Fuente
 
 ### Prerrequisitos
+- Compilador GCC o compatible.  
+- Sistema de construcción Make.  
+- Librerías de desarrollo OpenSSL (opcional).
 
-- Compilador GCC o compatible
-- Sistema de construcción Make
-- Librerías de desarrollo OpenSSL (opcional)
+### Instrucciones
+\`\`\`bash
+make                   # Construcción estándar
+make FEATURES=full     # Con soporte OpenSSL completo
+make clean && make     # Limpiar y reconstruir
+\`\`\`
+Binarios generados:
+- \`vlmcsd\` – Servidor KMS.  
+- \`vlmcs\` – Cliente KMS para pruebas.  
+- \`vlmcsdmulti\` – Binario multi-llamada.
 
-### Instrucciones de Construcción
-
-```bash
-# Construcción estándar
-make
-
-# Construcción con soporte OpenSSL completo
-make FEATURES=full
-
-# Limpiar construcción
-make clean && make
-```
-
-Los binarios compilados estarán disponibles:
-- `vlmcsd` - El daemon del servidor KMS
-- `vlmcs` - Cliente KMS para pruebas
-- `vlmcsdmulti` - Binario multi-llamada
+---
 
 ## 📚 Documentación
+\`\`\`bash
+man man/vlmcsd.8
+man man/vlmcs.1
+man man/vlmcsd.7
+man man/vlmcsd.ini.5
+\`\`\`
+Si no tienes \`man\` instalado, revisa los archivos \`.txt\`, \`.html\` y \`.pdf\` en el directorio \`man\`.
 
-Para documentación detallada, usa las páginas man:
-
-```bash
-man man/vlmcsd.8      # Documentación del servidor vlmcsd
-man man/vlmcs.1       # Documentación del cliente vlmcs  
-man man/vlmcsd.7      # Documentación general de KMS
-man man/vlmcsd.ini.5  # Formato del archivo de configuración
-```
-
-Si no tienes man instalado, puedes usar los archivos .txt, .html y .pdf en el directorio man.
+---
 
 ## ⚠️ Consideraciones de Seguridad
+Consulta \`SECURITY-ANALYSIS.md\` antes de usar en producción.
 
-Por favor revisa el archivo `SECURITY-ANALYSIS.md` para consideraciones importantes de seguridad antes de desplegar vlmcsd en entornos de producción.
+---
 
 ## ⚖️ Aviso Legal
+Este software es solo para **fines educativos y de prueba**.  
+Asegúrate de cumplir con los términos de licencia de Microsoft y las leyes aplicables.
 
-Este software es solo para propósitos educativos y de prueba. Los usuarios son responsables de asegurar el cumplimiento con los términos de licencia de Microsoft y las leyes aplicables en su jurisdicción.
+---
 
 ## 🤝 Contribuciones
-
-¡Las contribuciones son bienvenidas! Por favor asegúrate de que tu código sigue el estilo existente e incluye documentación apropiada.
-
-## 📄 Licencia
-
-Ver los archivos de código fuente para información de licenciamiento.
+¡Bienvenidas! Asegúrate de mantener el estilo y la documentación.
