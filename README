@@ -1,195 +1,54 @@
-# vlmcsd - KMS Emulator
+# vlmcsd - KMS Server
 
-vlmcsd is a KMS (Key Management Service) emulator that can be used to activate Microsoft Windows and Office products. It emulates a KMS server on your local network, allowing clients to activate their software without connecting to Microsoft's servers.
+Un servidor KMS (Key Management Service) emulador que permite activar productos Microsoft Windows y Office. Emula un servidor KMS en tu red local, permitiendo a los clientes activar su software sin conectar a los servidores de Microsoft.
 
-## Features
+## 🚀 Despliegue Rápido con Docker
 
-- Lightweight KMS server emulation
-- Supports Windows and Office activation
-- Cross-platform compatibility (Windows, Linux, macOS)
-- Docker support for containerized deployment
-- Minimal resource usage
-- No external dependencies required
+### 1. Configuración Requerida
 
-## Building from Source
+Para desplegar vlmcsd necesitarás:
+- **Docker**: Motor de contenedores instalado
+- **Puerto 1688**: Puerto estándar para KMS (configurable)
+- **Red local**: Acceso de red para los clientes que necesitan activación
 
-### Prerequisites
-
-- GCC or compatible C compiler
-- Make build system
-- OpenSSL development libraries (optional, for enhanced security)
-
-### Build Instructions
-
-#### Standard Build
-```bash
-make
-```
-
-#### Build with OpenSSL support
-```bash
-make FEATURES=full
-```
-
-#### Clean build
-```bash
-make clean
-make
-```
-
-The compiled binaries will be available in the project directory:
-- `vlmcsd` - The KMS server daemon
-- `vlmcs` - KMS client for testing
-- `vlmcsdmulti` - Multi-call binary
-
-## Installation
-
-### Manual Installation
-1. Copy the compiled `vlmcsd` binary to your preferred location (e.g., `/usr/local/bin/`)
-2. Copy the configuration file `etc/vlmcsd.ini` to `/etc/vlmcsd.ini` if needed
-3. Set appropriate permissions: `chmod +x /usr/local/bin/vlmcsd`
-
-### Using Package Managers
-Check if your distribution provides vlmcsd packages through its package manager.
-
-## Usage
-
-### Basic Usage
-
-#### Start the KMS server
-```bash
-./vlmcsd
-```
-
-#### Start with custom configuration
-```bash
-./vlmcsd -i /path/to/vlmcsd.ini
-```
-
-#### Run in foreground (for debugging)
-```bash
-./vlmcsd -D
-```
-
-#### Test the server
-```bash
-./vlmcs -v
-```
-
-### Configuration
-
-The server can be configured using command-line options or a configuration file:
-
-- Configuration file: `etc/vlmcsd.ini`
-- Key database: `etc/vlmcsd.kmd`
-
-Common options:
-- `-p <port>` - Set listening port (default: 1688)
-- `-l <address>` - Set listening address
-- `-v` - Verbose output
-- `-D` - Run in foreground
-
-### Client Activation
-
-Once vlmcsd is running, clients can activate using:
-
-#### Windows
-```cmd
-slmgr /skms <server-ip>:1688
-slmgr /ato
-```
-
-#### Office
-```cmd
-cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /sethst:<server-ip>
-cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /act
-```
-
-## 🐳 Docker Deployment
-
-### Quick Start
-
-Pull and run the latest KMS server with SSL support:
+### 2. Desplegar el Servidor KMS
 
 ```bash
-# Pull the image
-docker pull ghcr.io/gilberth/kms:latest
-
-# Run with auto-restart
-docker run -d \
-  --name vlmcsd \
-  --restart unless-stopped \
-  -p 1688:1688 \
-  ghcr.io/gilberth/kms:latest
-```
-
-### 🚀 One-Line Deployment
-```bash
+# Despliegue rápido de una línea
 docker run -d --name vlmcsd --restart unless-stopped -p 1688:1688 ghcr.io/gilberth/kms:latest
 ```
 
-### 🛠️ Advanced Configuration
+### 3. Verificar el Despliegue
 
-**With custom configuration:**
 ```bash
+# Verificar que el contenedor está ejecutándose
+docker ps
+
+# Ver logs del servidor
+docker logs vlmcsd
+
+# Probar el servidor
+docker exec vlmcsd /usr/bin/vlmcs -v localhost
+```
+
+## 🐳 Opciones de Despliegue
+
+### Despliegue Básico
+```bash
+# Pull de la imagen
+docker pull ghcr.io/gilberth/kms:latest
+
+# Ejecutar con auto-reinicio
 docker run -d \
   --name vlmcsd \
   --restart unless-stopped \
   -p 1688:1688 \
-  -v /path/to/vlmcsd.ini:/etc/vlmcsd.ini:ro \
   ghcr.io/gilberth/kms:latest
 ```
 
-**With custom port:**
-```bash
-docker run -d \
-  --name vlmcsd \
-  --restart unless-stopped \
-  -p 1689:1688 \
-  ghcr.io/gilberth/kms:latest
-```
+### Despliegue con Docker Compose
 
-**With logs:**
-```bash
-# View logs
-docker logs vlmcsd
-
-# Follow logs in real-time
-docker logs -f vlmcsd
-```
-
-### 📊 Container Management
-
-```bash
-# Check status
-docker ps
-
-# Stop the server
-docker stop vlmcsd
-
-# Start the server
-docker start vlmcsd
-
-# Restart the server
-docker restart vlmcsd
-
-# Remove container
-docker rm vlmcsd
-```
-
-### ✅ Test the Server
-
-```bash
-# Test with included client
-docker exec vlmcsd /usr/bin/vlmcs -v localhost
-
-# Test from host (if vlmcs is installed)
-vlmcs -v localhost
-```
-
-### 🔧 Docker Compose
-
-Create a `docker-compose.yml` file:
+Crea un archivo `docker-compose.yml`:
 
 ```yaml
 version: '3.8'
@@ -200,46 +59,157 @@ services:
     restart: unless-stopped
     ports:
       - "1688:1688"
-    # Optional: mount custom config
+    # Opcional: configuración personalizada
     # volumes:
     #   - ./vlmcsd.ini:/etc/vlmcsd.ini:ro
 ```
 
-Then run:
+Luego ejecuta:
 ```bash
 docker-compose up -d
 ```
 
----
-
-**🔒 This image includes SSL support and enhanced security features built from `Dockerfile.secure`.**
-
-## Documentation
-
-For detailed documentation, use the man pages:
+### Configuración Avanzada
 
 ```bash
-man man/vlmcsd.8    # vlmcsd server documentation
-man man/vlmcs.1     # vlmcs client documentation  
-man man/vlmcsd.7    # General KMS documentation
-man man/vlmcsd.ini.5 # Configuration file format
+# Con configuración personalizada
+docker run -d \
+  --name vlmcsd \
+  --restart unless-stopped \
+  -p 1688:1688 \
+  -v /ruta/a/vlmcsd.ini:/etc/vlmcsd.ini:ro \
+  ghcr.io/gilberth/kms:latest
+
+# Con puerto personalizado
+docker run -d \
+  --name vlmcsd \
+  --restart unless-stopped \
+  -p 1689:1688 \
+  ghcr.io/gilberth/kms:latest
 ```
 
-If you don't have man installed, you can also use the .txt, .html and .pdf files
-in the man directory.
+## 🛠️ Herramientas Disponibles
 
-## Security Considerations
+### Activación de Clientes
 
-Please review the `SECURITY-ANALYSIS.md` file for important security considerations before deploying vlmcsd in production environments.
+**Windows:**
+```cmd
+# Configurar servidor KMS
+slmgr /skms TU_IP_SERVIDOR:1688
 
-## Legal Notice
+# Activar Windows
+slmgr /ato
 
-This software is for educational and testing purposes only. Users are responsible for ensuring compliance with Microsoft's licensing terms and applicable laws in their jurisdiction.
+# Verificar estado de activación
+slmgr /xpr
+```
 
-## Contributing
+**Office:**
+```cmd
+# Configurar servidor KMS (Office 2019/2021)
+cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /sethst:TU_IP_SERVIDOR
 
-Contributions are welcome! Please ensure your code follows the existing style and includes appropriate documentation.
+# Activar Office
+cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /act
 
-## License
+# Verificar estado
+cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /dstatus
+```
 
-See the source code files for licensing information.
+### Gestión del Contenedor
+
+```bash
+# Verificar estado
+docker ps
+
+# Detener servidor
+docker stop vlmcsd
+
+# Iniciar servidor
+docker start vlmcsd
+
+# Reiniciar servidor
+docker restart vlmcsd
+
+# Ver logs en tiempo real
+docker logs -f vlmcsd
+
+# Eliminar contenedor
+docker rm vlmcsd
+```
+
+### Pruebas y Monitoreo
+
+```bash
+# Probar con cliente incluido
+docker exec vlmcsd /usr/bin/vlmcs -v localhost
+
+# Probar desde host (si vlmcs está instalado)
+vlmcs -v TU_IP_SERVIDOR
+
+# Verificar conectividad de red
+telnet TU_IP_SERVIDOR 1688
+```
+
+## ⚡ Características
+
+- **Ligero**: Imagen Docker optimizada con soporte SSL
+- **Multiplataforma**: Soporte para arquitecturas amd64 y arm64
+- **Autocontenido**: No requiere dependencias externas
+- **Seguro**: Construido con `Dockerfile.secure` con características de seguridad mejoradas
+- **Persistente**: Configurado con políticas de reinicio automático
+
+## 📋 Construcción desde Código Fuente
+
+### Prerrequisitos
+
+- Compilador GCC o compatible
+- Sistema de construcción Make
+- Librerías de desarrollo OpenSSL (opcional)
+
+### Instrucciones de Construcción
+
+```bash
+# Construcción estándar
+make
+
+# Construcción con soporte OpenSSL completo
+make FEATURES=full
+
+# Limpiar construcción
+make clean && make
+```
+
+Los binarios compilados estarán disponibles:
+- `vlmcsd` - El daemon del servidor KMS
+- `vlmcs` - Cliente KMS para pruebas
+- `vlmcsdmulti` - Binario multi-llamada
+
+## 📚 Documentación
+
+Para documentación detallada, usa las páginas man:
+
+```bash
+man man/vlmcsd.8      # Documentación del servidor vlmcsd
+man man/vlmcs.1       # Documentación del cliente vlmcs  
+man man/vlmcsd.7      # Documentación general de KMS
+man man/vlmcsd.ini.5  # Formato del archivo de configuración
+```
+
+Si no tienes man instalado, puedes usar los archivos .txt, .html y .pdf en el directorio man.
+
+## ⚠️ Consideraciones de Seguridad
+
+Por favor revisa el archivo `SECURITY-ANALYSIS.md` para consideraciones importantes de seguridad antes de desplegar vlmcsd en entornos de producción.
+
+## ⚖️ Aviso Legal
+
+Este software es solo para propósitos educativos y de prueba. Los usuarios son responsables de asegurar el cumplimiento con los términos de licencia de Microsoft y las leyes aplicables en su jurisdicción.
+
+## 🤝 Contribuciones
+
+¡Las contribuciones son bienvenidas! Por favor asegúrate de que tu código sigue el estilo existente e incluye documentación apropiada.
+
+## 📄 Licencia
+
+Ver los archivos de código fuente para información de licenciamiento.
