@@ -1,4 +1,4 @@
-# vlmcsd - KMS Server
+--- vlmcsd - KMS Server
 
 Un servidor KMS (Key Management Service) emulador que permite activar productos Microsoft Windows y Office. Emula un servidor KMS en tu red local, permitiendo a los clientes activar su software sin conectar a los servidores de Microsoft.
 
