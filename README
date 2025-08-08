@@ -105,14 +105,114 @@ cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /sethst:<server-ip
 cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /act
 ```
 
-## Docker Image
+## 🐳 Docker Deployment
 
-**Latest Docker image available:**
+### Quick Start
+
+Pull and run the latest KMS server with SSL support:
+
 ```bash
+# Pull the image
 docker pull ghcr.io/gilberth/kms:latest
+
+# Run with auto-restart
+docker run -d \
+  --name vlmcsd \
+  --restart unless-stopped \
+  -p 1688:1688 \
+  ghcr.io/gilberth/kms:latest
 ```
 
-This image includes SSL support and enhanced security features built from `Dockerfile.secure`.
+### 🚀 One-Line Deployment
+```bash
+docker run -d --name vlmcsd --restart unless-stopped -p 1688:1688 ghcr.io/gilberth/kms:latest
+```
+
+### 🛠️ Advanced Configuration
+
+**With custom configuration:**
+```bash
+docker run -d \
+  --name vlmcsd \
+  --restart unless-stopped \
+  -p 1688:1688 \
+  -v /path/to/vlmcsd.ini:/etc/vlmcsd.ini:ro \
+  ghcr.io/gilberth/kms:latest
+```
+
+**With custom port:**
+```bash
+docker run -d \
+  --name vlmcsd \
+  --restart unless-stopped \
+  -p 1689:1688 \
+  ghcr.io/gilberth/kms:latest
+```
+
+**With logs:**
+```bash
+# View logs
+docker logs vlmcsd
+
+# Follow logs in real-time
+docker logs -f vlmcsd
+```
+
+### 📊 Container Management
+
+```bash
+# Check status
+docker ps
+
+# Stop the server
+docker stop vlmcsd
+
+# Start the server
+docker start vlmcsd
+
+# Restart the server
+docker restart vlmcsd
+
+# Remove container
+docker rm vlmcsd
+```
+
+### ✅ Test the Server
+
+```bash
+# Test with included client
+docker exec vlmcsd /usr/bin/vlmcs -v localhost
+
+# Test from host (if vlmcs is installed)
+vlmcs -v localhost
+```
+
+### 🔧 Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+services:
+  vlmcsd:
+    image: ghcr.io/gilberth/kms:latest
+    container_name: vlmcsd
+    restart: unless-stopped
+    ports:
+      - "1688:1688"
+    # Optional: mount custom config
+    # volumes:
+    #   - ./vlmcsd.ini:/etc/vlmcsd.ini:ro
+```
+
+Then run:
+```bash
+docker-compose up -d
+```
+
+---
+
+**🔒 This image includes SSL support and enhanced security features built from `Dockerfile.secure`.**
 
 ## Documentation
 
