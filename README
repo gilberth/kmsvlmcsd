@@ -1,14 +1,164 @@
-To view the documentation cd to the directory containing the distribution
-files and type
+# vlmcsd - KMS Emulator
 
-man man/vlmcsd.8
-	to see documentation for vlmcsd
+vlmcsd is a KMS (Key Management Service) emulator that can be used to activate Microsoft Windows and Office products. It emulates a KMS server on your local network, allowing clients to activate their software without connecting to Microsoft's servers.
 
-man man/vlmcs.1
-	to see documentation for vlmcs
+## Features
 
-man man/vlmcsd.7
-	to see general documentation for kms
+- Lightweight KMS server emulation
+- Supports Windows and Office activation
+- Cross-platform compatibility (Windows, Linux, macOS)
+- Docker support for containerized deployment
+- Minimal resource usage
+- No external dependencies required
 
-If you don't have man, you may also use the .txt, .html and .pdf files
-in the man directory
+## Building from Source
+
+### Prerequisites
+
+- GCC or compatible C compiler
+- Make build system
+- OpenSSL development libraries (optional, for enhanced security)
+
+### Build Instructions
+
+#### Standard Build
+```bash
+make
+```
+
+#### Build with OpenSSL support
+```bash
+make FEATURES=full
+```
+
+#### Clean build
+```bash
+make clean
+make
+```
+
+The compiled binaries will be available in the project directory:
+- `vlmcsd` - The KMS server daemon
+- `vlmcs` - KMS client for testing
+- `vlmcsdmulti` - Multi-call binary
+
+## Installation
+
+### Manual Installation
+1. Copy the compiled `vlmcsd` binary to your preferred location (e.g., `/usr/local/bin/`)
+2. Copy the configuration file `etc/vlmcsd.ini` to `/etc/vlmcsd.ini` if needed
+3. Set appropriate permissions: `chmod +x /usr/local/bin/vlmcsd`
+
+### Using Package Managers
+Check if your distribution provides vlmcsd packages through its package manager.
+
+## Usage
+
+### Basic Usage
+
+#### Start the KMS server
+```bash
+./vlmcsd
+```
+
+#### Start with custom configuration
+```bash
+./vlmcsd -i /path/to/vlmcsd.ini
+```
+
+#### Run in foreground (for debugging)
+```bash
+./vlmcsd -D
+```
+
+#### Test the server
+```bash
+./vlmcs -v
+```
+
+### Configuration
+
+The server can be configured using command-line options or a configuration file:
+
+- Configuration file: `etc/vlmcsd.ini`
+- Key database: `etc/vlmcsd.kmd`
+
+Common options:
+- `-p <port>` - Set listening port (default: 1688)
+- `-l <address>` - Set listening address
+- `-v` - Verbose output
+- `-D` - Run in foreground
+
+### Client Activation
+
+Once vlmcsd is running, clients can activate using:
+
+#### Windows
+```cmd
+slmgr /skms <server-ip>:1688
+slmgr /ato
+```
+
+#### Office
+```cmd
+cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /sethst:<server-ip>
+cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /act
+```
+
+## Docker Support
+
+### Using Docker Compose
+```bash
+# Standard deployment
+docker-compose up -d
+
+# Secure deployment with SSL
+docker-compose -f docker-compose.secure.yml up -d
+```
+
+### Manual Docker Build
+```bash
+# Build standard image
+docker build -t vlmcsd .
+
+# Build secure image with SSL
+docker build -f Dockerfile.secure -t vlmcsd-secure .
+
+# Run container
+docker run -d -p 1688:1688 --name vlmcsd vlmcsd
+```
+
+### Docker Environment Variables
+
+- `VLMCSD_ARGS` - Additional command-line arguments
+- `VLMCSD_PORT` - Listening port (default: 1688)
+
+## Documentation
+
+For detailed documentation, use the man pages:
+
+```bash
+man man/vlmcsd.8    # vlmcsd server documentation
+man man/vlmcs.1     # vlmcs client documentation  
+man man/vlmcsd.7    # General KMS documentation
+man man/vlmcsd.ini.5 # Configuration file format
+```
+
+If you don't have man installed, you can also use the .txt, .html and .pdf files
+in the man directory.
+
+## Security Considerations
+
+Please review the `SECURITY-ANALYSIS.md` file for important security considerations before deploying vlmcsd in production environments.
+
+## Legal Notice
+
+This software is for educational and testing purposes only. Users are responsible for ensuring compliance with Microsoft's licensing terms and applicable laws in their jurisdiction.
+
+## Contributing
+
+Contributions are welcome! Please ensure your code follows the existing style and includes appropriate documentation.
+
+## License
+
+See the source code files for licensing information.
