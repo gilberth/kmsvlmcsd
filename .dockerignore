@@ -1,0 +1,39 @@
+# Git files
+.git
+.gitignore
+.gitmodules
+
+# Documentation
+README*
+man/
+
+# Build artifacts
+bin/
+build/
+lib/
+*.o
+*.a
+*.so
+*.dll
+*.dylib
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker files (avoid recursion)
+Dockerfile*
+.dockerignore
+docker-compose.yml

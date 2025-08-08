@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  vlmcsd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vlmcsd:latest
+    container_name: vlmcsd-server
+    restart: unless-stopped
+    ports:
+      - "1688:1688"
+    volumes:
+      - ./etc/vlmcsd.ini:/etc/vlmcsd.ini:ro
+    networks:
+      - vlmcsd-net
+    healthcheck:
+      test: ["CMD", "/usr/bin/vlmcs", "-l", "3", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  vlmcsd-net:
+    driver: bridge
