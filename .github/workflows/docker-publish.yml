@@ -22,6 +22,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -38,11 +39,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Convert repository name to lowercase
+        run: echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -55,7 +59,7 @@ jobs:
         id: meta-secure
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-secure
+          images: ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}-secure
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -97,10 +101,10 @@ jobs:
           echo "" >> docker-info.md
           echo "### Standard Image" >> docker-info.md
           echo '```bash' >> docker-info.md
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> docker-info.md
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}:latest" >> docker-info.md
           echo '```' >> docker-info.md
           echo "" >> docker-info.md
           echo "### Secure Image (with SSL support)" >> docker-info.md
           echo '```bash' >> docker-info.md
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-secure:latest" >> docker-info.md
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}-secure:latest" >> docker-info.md
           echo '```' >> docker-info.md
