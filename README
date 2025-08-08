@@ -23,12 +23,12 @@ Emula un servidor KMS en tu red local, permitiendo que los clientes activen su s
 - **Acceso a red local** para los clientes que requieran activación.
 
 ### 2️⃣ Comando de despliegue rápido
-\`\`\`bash
+```bash
 docker run -d   --name vlmcsd   --restart unless-stopped   -p 1688:1688   ghcr.io/gilberth/kms:latest
-\`\`\`
+```
 
 ### 3️⃣ Verificación
-\`\`\`bash
+```bash
 # Verificar que el contenedor está en ejecución
 docker ps
 
@@ -37,21 +37,21 @@ docker logs vlmcsd
 
 # Probar el servidor
 docker exec vlmcsd /usr/bin/vlmcs -v localhost
-\`\`\`
+```
 
 ---
 
 ## 🐳 Opciones de Despliegue
 
 ### 📦 Despliegue Básico
-\`\`\`bash
+```bash
 docker pull ghcr.io/gilberth/kms:latest
 docker run -d   --name vlmcsd   --restart unless-stopped   -p 1688:1688   ghcr.io/gilberth/kms:latest
-\`\`\`
+```
 
 ### 📄 Docker Compose
-Archivo \`docker-compose.yml\`:
-\`\`\`yaml
+Archivo `docker-compose.yml`:
+```yaml
 version: '3.8'
 services:
   vlmcsd:
@@ -63,59 +63,59 @@ services:
     # Opcional: configuración personalizada
     # volumes:
     #   - ./vlmcsd.ini:/etc/vlmcsd.ini:ro
-\`\`\`
+```
 Ejecutar:
-\`\`\`bash
+```bash
 docker-compose up -d
-\`\`\`
+```
 
 ### ⚙️ Configuración Avanzada
-\`\`\`bash
+```bash
 # Con archivo de configuración
 docker run -d   --name vlmcsd   --restart unless-stopped   -p 1688:1688   -v /ruta/a/vlmcsd.ini:/etc/vlmcsd.ini:ro   ghcr.io/gilberth/kms:latest
 
 # Con puerto personalizado
 docker run -d   --name vlmcsd   --restart unless-stopped   -p 1689:1688   ghcr.io/gilberth/kms:latest
-\`\`\`
+```
 
 ---
 
 ## 🛠️ Activación de Clientes
 
 ### 💻 Windows
-\`\`\`cmd
+```cmd
 slmgr /skms TU_IP_SERVIDOR:1688
 slmgr /ato
 slmgr /xpr
-\`\`\`
+```
 
 ### 📄 Office 2019/2021
-\`\`\`cmd
+```cmd
 cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /sethst:TU_IP_SERVIDOR
 cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /act
 cscript "C:\Program Files\Microsoft Office\Office16\ospp.vbs" /dstatus
-\`\`\`
+```
 
 ---
 
 ## 📋 Gestión del Contenedor
-\`\`\`bash
+```bash
 docker ps                  # Ver estado
 docker stop vlmcsd         # Detener
 docker start vlmcsd        # Iniciar
 docker restart vlmcsd      # Reiniciar
 docker logs -f vlmcsd      # Logs en tiempo real
 docker rm vlmcsd           # Eliminar
-\`\`\`
+```
 
 ---
 
 ## 🔍 Pruebas y Monitoreo
-\`\`\`bash
+```bash
 docker exec vlmcsd /usr/bin/vlmcs -v localhost
 vlmcs -v TU_IP_SERVIDOR
 telnet TU_IP_SERVIDOR 1688
-\`\`\`
+```
 
 ---
 
@@ -127,31 +127,31 @@ telnet TU_IP_SERVIDOR 1688
 - Librerías de desarrollo OpenSSL (opcional).
 
 ### Instrucciones
-\`\`\`bash
+```bash
 make                   # Construcción estándar
 make FEATURES=full     # Con soporte OpenSSL completo
 make clean && make     # Limpiar y reconstruir
-\`\`\`
+```
 Binarios generados:
-- \`vlmcsd\` – Servidor KMS.  
-- \`vlmcs\` – Cliente KMS para pruebas.  
-- \`vlmcsdmulti\` – Binario multi-llamada.
+- `vlmcsd` – Servidor KMS.  
+- `vlmcs` – Cliente KMS para pruebas.  
+- `vlmcsdmulti` – Binario multi-llamada.
 
 ---
 
 ## 📚 Documentación
-\`\`\`bash
+```bash
 man man/vlmcsd.8
 man man/vlmcs.1
 man man/vlmcsd.7
 man man/vlmcsd.ini.5
-\`\`\`
-Si no tienes \`man\` instalado, revisa los archivos \`.txt\`, \`.html\` y \`.pdf\` en el directorio \`man\`.
+```
+Si no tienes `man` instalado, revisa los archivos `.txt`, `.html` y `.pdf` en el directorio `man`.
 
 ---
 
 ## ⚠️ Consideraciones de Seguridad
-Consulta \`SECURITY-ANALYSIS.md\` antes de usar en producción.
+Consulta `SECURITY-ANALYSIS.md` antes de usar en producción.
 
 ---
 
