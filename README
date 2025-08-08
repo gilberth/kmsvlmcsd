@@ -105,33 +105,14 @@ cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /sethst:<server-ip
 cscript "C:\Program Files\Microsoft Office\OfficeXX\ospp.vbs" /act
 ```
 
-## Docker Support
+## Docker Image
 
-### Using Docker Compose
+**Latest Docker image available:**
 ```bash
-# Standard deployment
-docker-compose up -d
-
-# Secure deployment with SSL
-docker-compose -f docker-compose.secure.yml up -d
+docker pull ghcr.io/gilberth/kms:latest
 ```
 
-### Manual Docker Build
-```bash
-# Build standard image
-docker build -t vlmcsd .
-
-# Build secure image with SSL
-docker build -f Dockerfile.secure -t vlmcsd-secure .
-
-# Run container
-docker run -d -p 1688:1688 --name vlmcsd vlmcsd
-```
-
-### Docker Environment Variables
-
-- `VLMCSD_ARGS` - Additional command-line arguments
-- `VLMCSD_PORT` - Listening port (default: 1688)
+This image includes SSL support and enhanced security features built from `Dockerfile.secure`.
 
 ## Documentation
 
