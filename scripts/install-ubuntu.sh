@@ -128,17 +128,35 @@ select_configuration() {
 
 # Detectar la última release
 get_latest_release() {
-    log_info "Detectando la última versión disponible..."
-    LATEST_VERSION=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | \
-                     grep '"tag_name":' | \
-                     sed -E 's/.*"([^"]+)".*/\1/')
+    echo "🔍 Obteniendo información de la última versión..."
     
-    if [[ -z "$LATEST_VERSION" ]]; then
-        log_error "No se pudo detectar la última versión"
-        exit 1
+    # Intentar obtener la última release de GitHub
+    LATEST_RELEASE=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases/latest" 2>/dev/null)
+    
+    if [ $? -eq 0 ] && echo "$LATEST_RELEASE" | jq -e '.tag_name' >/dev/null 2>&1; then
+        VERSION=$(echo "$LATEST_RELEASE" | jq -r '.tag_name')
+        echo "✓ Última versión encontrada: $VERSION"
+        return 0
+    else
+        echo "❌ No se pudo obtener información de releases desde GitHub"
+        
+        # Fallback: intentar obtener el último tag
+        echo "🔄 Intentando obtener el último tag..."
+        LATEST_TAG=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/tags" 2>/dev/null | jq -r '.[0].name' 2>/dev/null)
+        
+        if [ -n "$LATEST_TAG" ] && [ "$LATEST_TAG" != "null" ]; then
+            VERSION="$LATEST_TAG"
+            echo "✓ Último tag encontrado: $VERSION"
+            return 0
+        else
+            echo "❌ No se pudo obtener información de tags"
+            echo "ℹ️  Esto puede ocurrir si:"
+            echo "   - El repositorio no tiene releases publicados aún"
+            echo "   - Hay problemas de conectividad"
+            echo "   - Los workflows están en proceso"
+            return 1
+        fi
     fi
-    
-    log_success "Última versión detectada: $LATEST_VERSION"
 }
 
 # Descargar binarios
@@ -189,6 +207,25 @@ download_binaries() {
     if [[ "$SUCCESS" == "false" ]]; then
         log_error "No se pudieron descargar los binarios de ninguna configuración"
         log_info "Configuraciones intentadas: ${FALLBACK_CONFIGS[*]}"
+        echo ""
+        echo "💡 Posibles causas y soluciones:"
+        echo ""
+        echo "1. 🏗️  El workflow de GitHub Actions puede estar aún procesando"
+        echo "   ➜ Espera unos minutos y vuelve a intentar"
+        echo ""
+        echo "2. 🔗 Verifica que el release existe:"
+        echo "   ➜ https://github.com/$GITHUB_REPO/releases"
+        echo ""
+        echo "3. 🔄 El tag fue recién creado y los binarios están compilándose"
+        echo "   ➜ Revisa el estado en: https://github.com/$GITHUB_REPO/actions"
+        echo ""
+        echo "4. 🛠️  Compila manualmente los binarios:"
+        echo "   ➜ git clone https://github.com/$GITHUB_REPO.git"
+        echo "   ➜ cd vlmcsd && make"
+        echo ""
+        echo "5. ⏱️  Programa la instalación para más tarde:"
+        echo "   ➜ echo '$0 $@' | at now + 10 minutes"
+        echo ""
         exit 1
     fi
     
