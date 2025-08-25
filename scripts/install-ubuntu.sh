@@ -1,6 +1,7 @@
 #!/bin/bash
 # Script de instalación rápida de vlmcsd para Ubuntu
-# Uso: curl -fsSL https://raw.githubusercontent.com/tu-usuario/vlmcsd/master/scripts/install-ubuntu.sh | sudo bash
+# Uso básico: curl -fsSL https://raw.githubusercontent.com/gilberth/kmsvlmcsd/master/scripts/install-ubuntu.sh | sudo bash
+# Uso avanzado: curl -fsSL https://raw.githubusercontent.com/gilberth/kmsvlmcsd/master/scripts/install-ubuntu.sh | sudo VARIANT=embedded CRYPTO=internal bash
 
 set -e
 
@@ -9,17 +10,23 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Variables
+# Variables (pueden ser sobrescritas por variables de entorno)
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/vlmcsd"
 SERVICE_FILE="/etc/systemd/system/vlmcsd.service"
 USER="vlmcsd"
 GITHUB_REPO="gilberth/kmsvlmcsd"
 ARCH="x64"
-VARIANT="full"
-CRYPTO="openssl"
+
+# Configuraciones disponibles
+VARIANT="${VARIANT:-full}"          # full, embedded, autostart
+CRYPTO="${CRYPTO:-openssl}"         # internal, openssl, openssl_with_aes
+
+# Modo interactivo (si no se especifican variables de entorno)
+INTERACTIVE="${INTERACTIVE:-auto}"   # auto, yes, no
 
 echo -e "${BLUE}=== vlmcsd Ubuntu Installation Script ===${NC}"
 echo "Este script instalará vlmcsd como servicio systemd en Ubuntu"
@@ -58,6 +65,67 @@ log_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+log_cyan() {
+    echo -e "${CYAN}🔧 $1${NC}"
+}
+
+# Función para seleccionar configuración
+select_configuration() {
+    if [[ "$INTERACTIVE" == "no" ]] || [[ -n "$VARIANT" && -n "$CRYPTO" && "$INTERACTIVE" == "auto" ]]; then
+        log_info "Usando configuración: VARIANT=$VARIANT, CRYPTO=$CRYPTO"
+        return
+    fi
+    
+    echo ""
+    log_cyan "Configuraciones disponibles de vlmcsd:"
+    echo ""
+    echo -e "${CYAN}📋 VARIANTES:${NC}"
+    echo "  1) full      - Todas las características (recomendado para servidores)"
+    echo "  2) embedded  - Optimizado para sistemas embebidos (menor tamaño)"
+    echo "  3) autostart - Para scripts de inicio automático (características básicas)"
+    echo ""
+    echo -e "${CYAN}🔐 BACKENDS CRYPTO:${NC}"
+    echo "  1) openssl           - OpenSSL del sistema (recomendado, requiere libssl)"
+    echo "  2) internal          - Crypto interno (sin dependencias externas)"
+    echo "  3) openssl_with_aes  - OpenSSL + aceleración hardware AES (solo para 'full')"
+    echo ""
+    
+    # Seleccionar variante
+    while true; do
+        echo -n -e "${CYAN}Selecciona variante [1-3] (por defecto: 1-full): ${NC}"
+        read -r variant_choice
+        case $variant_choice in
+            ""|1) VARIANT="full"; break ;;
+            2) VARIANT="embedded"; break ;;
+            3) VARIANT="autostart"; break ;;
+            *) echo -e "${RED}Opción inválida. Usa 1, 2 o 3.${NC}" ;;
+        esac
+    done
+    
+    # Seleccionar crypto
+    while true; do
+        echo -n -e "${CYAN}Selecciona backend crypto [1-3] (por defecto: 1-openssl): ${NC}"
+        read -r crypto_choice
+        case $crypto_choice in
+            ""|1) CRYPTO="openssl"; break ;;
+            2) CRYPTO="internal"; break ;;
+            3) 
+                if [[ "$VARIANT" == "full" ]]; then
+                    CRYPTO="openssl_with_aes"
+                    break
+                else
+                    echo -e "${RED}openssl_with_aes solo está disponible para la variante 'full'.${NC}"
+                fi
+                ;;
+            *) echo -e "${RED}Opción inválida. Usa 1, 2 o 3.${NC}" ;;
+        esac
+    done
+    
+    echo ""
+    log_success "Configuración seleccionada: $VARIANT + $CRYPTO"
+    echo ""
+}
+
 # Detectar la última release
 get_latest_release() {
     log_info "Detectando la última versión disponible..."
@@ -80,23 +148,48 @@ download_binaries() {
     DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_VERSION/vlmcsd-ubuntu-$ARCH-$VARIANT-$CRYPTO-$LATEST_VERSION.tar.gz"
     TEMP_DIR=$(mktemp -d)
     
+    log_info "Configuración seleccionada: $VARIANT + $CRYPTO"
     log_info "Descargando desde: $DOWNLOAD_URL"
     
-    if ! curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/vlmcsd.tar.gz"; then
-        log_error "Error al descargar los binarios"
-        log_info "Intentando con variante diferente..."
+    # Lista de configuraciones de fallback
+    FALLBACK_CONFIGS=(
+        "$VARIANT-$CRYPTO"
+        "$VARIANT-openssl"
+        "$VARIANT-internal"
+        "full-openssl"
+        "full-internal"
+        "embedded-internal"
+    )
+    
+    SUCCESS=false
+    
+    for config in "${FALLBACK_CONFIGS[@]}"; do
+        IFS='-' read -r try_variant try_crypto <<< "$config"
         
-        # Intentar con variante interna si openssl falla
-        if [[ "$CRYPTO" == "openssl" ]]; then
-            CRYPTO="internal"
-            DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_VERSION/vlmcsd-ubuntu-$ARCH-$VARIANT-$CRYPTO-$LATEST_VERSION.tar.gz"
-            if ! curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/vlmcsd.tar.gz"; then
-                log_error "No se pudieron descargar los binarios"
-                exit 1
-            fi
+        # Evitar repetir la misma configuración
+        if [[ "$try_variant-$try_crypto" == "$VARIANT-$CRYPTO" && "$SUCCESS" == "false" ]]; then
+            try_url="$DOWNLOAD_URL"
         else
-            exit 1
+            try_url="https://github.com/$GITHUB_REPO/releases/download/$LATEST_VERSION/vlmcsd-ubuntu-$ARCH-$try_variant-$try_crypto-$LATEST_VERSION.tar.gz"
         fi
+        
+        log_info "Intentando descargar: $try_variant + $try_crypto"
+        
+        if curl -fsSL "$try_url" -o "$TEMP_DIR/vlmcsd.tar.gz"; then
+            log_success "Descarga exitosa: $try_variant + $try_crypto"
+            VARIANT="$try_variant"
+            CRYPTO="$try_crypto"
+            SUCCESS=true
+            break
+        else
+            log_warning "No disponible: $try_variant + $try_crypto"
+        fi
+    done
+    
+    if [[ "$SUCCESS" == "false" ]]; then
+        log_error "No se pudieron descargar los binarios de ninguna configuración"
+        log_info "Configuraciones intentadas: ${FALLBACK_CONFIGS[*]}"
+        exit 1
     fi
     
     cd "$TEMP_DIR"
@@ -109,7 +202,7 @@ download_binaries() {
     fi
     
     cd "$EXTRACT_DIR"
-    log_success "Binarios descargados y extraídos"
+    log_success "Binarios extraídos correctamente"
 }
 
 # Instalar dependencias
@@ -298,9 +391,10 @@ show_final_info() {
     echo -e "${GREEN}🎉 ¡Instalación completada exitosamente!${NC}"
     echo ""
     echo -e "${BLUE}📋 Información del servicio:${NC}"
-    echo "  Estado:     $(systemctl is-active vlmcsd)"
-    echo "  Habilitado: $(systemctl is-enabled vlmcsd)"
-    echo "  Puerto:     1688"
+    echo "  Configuración:  $VARIANT + $CRYPTO"
+    echo "  Estado:         $(systemctl is-active vlmcsd)"
+    echo "  Habilitado:     $(systemctl is-enabled vlmcsd)"
+    echo "  Puerto:         1688"
     echo ""
     echo -e "${BLUE}🛠️  Comandos útiles:${NC}"
     echo "  Estado del servicio:  sudo systemctl status vlmcsd"
@@ -317,6 +411,15 @@ show_final_info() {
     echo "  slmgr /skms $(hostname -I | awk '{print $1}'):1688"
     echo "  slmgr /ato"
     echo ""
+    echo -e "${CYAN}📖 Configuraciones disponibles para reinstalar:${NC}"
+    echo "  # Instalación específica con variables de entorno:"
+    echo "  VARIANT=full CRYPTO=openssl curl -fsSL ... | sudo bash"
+    echo "  VARIANT=embedded CRYPTO=internal curl -fsSL ... | sudo bash"
+    echo "  VARIANT=autostart CRYPTO=internal curl -fsSL ... | sudo bash"
+    echo ""
+    echo -e "${CYAN}🗑️  Para desinstalar completamente vlmcsd:${NC}"
+    echo "  curl -fsSL https://raw.githubusercontent.com/gilberth/kmsvlmcsd/master/scripts/uninstall-ubuntu.sh | sudo bash"
+    echo ""
     echo -e "${YELLOW}⚠️  Nota: Usar solo para fines educativos y de prueba${NC}"
 }
 
@@ -332,6 +435,7 @@ trap cleanup EXIT
 
 # Ejecución principal
 main() {
+    select_configuration
     get_latest_release
     install_dependencies
     download_binaries

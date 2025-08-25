@@ -234,7 +234,13 @@ sudo journalctl -u vlmcsd -f    # Ver logs
 vlmcs -v localhost              # Probar funcionamiento
 ```
 
-### 📋 Configuración
+### �️ Desinstalación
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gilberth/kmsvlmcsd/master/scripts/uninstall-ubuntu.sh | sudo bash
+```
+
+### �📋 Configuración
 
 - **Archivo de configuración**: `/etc/vlmcsd/vlmcsd.ini`
 - **Logs**: `/var/log/vlmcsd.log` o `journalctl -u vlmcsd`
