@@ -473,7 +473,16 @@ trap cleanup EXIT
 # Ejecución principal
 main() {
     select_configuration
-    get_latest_release
+    
+    # Obtener la última versión
+    if get_latest_release; then
+        LATEST_VERSION="$VERSION"
+        log_success "Versión detectada: $LATEST_VERSION"
+    else
+        log_error "No se pudo detectar la última versión"
+        exit 1
+    fi
+    
     install_dependencies
     download_binaries
     create_user
