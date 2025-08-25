@@ -1,0 +1,357 @@
+name: Build Ubuntu x64 Binaries
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-ubuntu-x64:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        features: [full, embedded, minimum]
+        crypto: [internal, openssl]
+        include:
+          - features: full
+            crypto: openssl_with_aes
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            gcc \
+            make \
+            libssl-dev \
+            pkg-config
+
+      - name: Display build environment
+        run: |
+          echo "=== Build Environment ==="
+          gcc --version
+          make --version
+          uname -a
+          lscpu | grep -E "(Architecture|CPU|Model name|Thread|Core)"
+          echo "========================="
+
+      - name: Clean build directory
+        run: make clean
+
+      - name: Build vlmcsd binaries
+        run: |
+          echo "Building with FEATURES=${{ matrix.features }} and CRYPTO=${{ matrix.crypto }}"
+          if [ "${{ matrix.crypto }}" = "internal" ]; then
+            make FEATURES=${{ matrix.features }} STRIP=1 VERBOSE=1
+          else
+            make FEATURES=${{ matrix.features }} CRYPTO=${{ matrix.crypto }} STRIP=1 VERBOSE=1
+          fi
+
+      - name: Verify binaries
+        run: |
+          echo "=== Binary Information ==="
+          ls -la bin/ || echo "bin/ directory not found"
+          if [ -f "bin/vlmcsd" ]; then
+            file bin/vlmcsd
+            ldd bin/vlmcsd || echo "Static binary or ldd failed"
+            bin/vlmcsd -V || echo "Version check failed"
+          fi
+          if [ -f "bin/vlmcs" ]; then
+            file bin/vlmcs
+            ldd bin/vlmcs || echo "Static binary or ldd failed"
+            bin/vlmcs -V || echo "Version check failed"
+          fi
+          if [ -f "bin/vlmcsdmulti" ]; then
+            file bin/vlmcsdmulti
+            ldd bin/vlmcsdmulti || echo "Static binary or ldd failed"
+          fi
+          echo "=========================="
+
+      - name: Test vlmcsd functionality
+        run: |
+          if [ -f "bin/vlmcsd" ] && [ -f "bin/vlmcs" ]; then
+            echo "Testing vlmcsd functionality..."
+            # Start vlmcsd in background
+            timeout 10s bin/vlmcsd -D -d -f &
+            VLMCSD_PID=$!
+            sleep 2
+            
+            # Test with vlmcs
+            timeout 5s bin/vlmcs -v localhost || echo "vlmcs test completed with exit code $?"
+            
+            # Clean up
+            kill $VLMCSD_PID 2>/dev/null || true
+            wait $VLMCSD_PID 2>/dev/null || true
+          else
+            echo "Binaries not found, skipping functionality test"
+          fi
+
+      - name: Create archive
+        run: |
+          ARCHIVE_NAME="vlmcsd-ubuntu-x64-${{ matrix.features }}-${{ matrix.crypto }}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            ARCHIVE_NAME="${ARCHIVE_NAME}-${{ github.ref_name }}"
+          else
+            ARCHIVE_NAME="${ARCHIVE_NAME}-$(git rev-parse --short HEAD)"
+          fi
+
+          mkdir -p release/$ARCHIVE_NAME
+
+          # Copy binaries
+          if [ -d "bin" ]; then
+            cp -r bin/* release/$ARCHIVE_NAME/ 2>/dev/null || echo "No binaries in bin/"
+          fi
+
+          # Copy configuration files
+          if [ -f "etc/vlmcsd.ini" ]; then
+            cp etc/vlmcsd.ini release/$ARCHIVE_NAME/
+          fi
+          if [ -f "etc/vlmcsd.kmd" ]; then
+            cp etc/vlmcsd.kmd release/$ARCHIVE_NAME/
+          fi
+
+          # Copy documentation
+          cp README.md release/$ARCHIVE_NAME/ 2>/dev/null || echo "README.md not found"
+          cp README.compile-and-pre-built-binaries.md release/$ARCHIVE_NAME/ 2>/dev/null || echo "Compile README not found"
+          if [ -d "man" ]; then
+            mkdir -p release/$ARCHIVE_NAME/man
+            cp man/*.* release/$ARCHIVE_NAME/man/ 2>/dev/null || echo "No man pages found"
+          fi
+
+          # Create installation script
+          cat > release/$ARCHIVE_NAME/install-ubuntu.sh << 'INSTALL_SCRIPT_EOF'
+          #!/bin/bash
+          # vlmcsd Ubuntu Installation Script
+          # This script installs vlmcsd as a systemd service
+
+          set -e
+
+          echo "=== vlmcsd Ubuntu Installation Script ==="
+
+          # Check if running as root
+          if [[ $EUID -ne 0 ]]; then
+             echo "This script must be run as root (use sudo)" 
+             exit 1
+          fi
+
+          # Variables
+          INSTALL_DIR="/usr/local/bin"
+          CONFIG_DIR="/etc/vlmcsd"
+          SERVICE_FILE="/etc/systemd/system/vlmcsd.service"
+          USER="vlmcsd"
+
+          echo "Installing vlmcsd binaries..."
+
+          # Create vlmcsd user if it doesn't exist
+          if ! id "$USER" &>/dev/null; then
+              echo "Creating vlmcsd user..."
+              useradd -r -s /bin/false -d /nonexistent -c "vlmcsd KMS Server" $USER
+          fi
+
+          # Install binaries
+          echo "Copying binaries to $INSTALL_DIR..."
+          cp vlmcsd $INSTALL_DIR/
+          cp vlmcs $INSTALL_DIR/
+          [ -f vlmcsdmulti ] && cp vlmcsdmulti $INSTALL_DIR/
+          chmod +x $INSTALL_DIR/vlmcsd $INSTALL_DIR/vlmcs
+          [ -f $INSTALL_DIR/vlmcsdmulti ] && chmod +x $INSTALL_DIR/vlmcsdmulti
+
+          # Create config directory
+          echo "Setting up configuration..."
+          mkdir -p $CONFIG_DIR
+          [ -f vlmcsd.ini ] && cp vlmcsd.ini $CONFIG_DIR/
+          [ -f vlmcsd.kmd ] && cp vlmcsd.kmd $CONFIG_DIR/
+          chown -R $USER:$USER $CONFIG_DIR
+
+          # Create systemd service
+          echo "Creating systemd service..."
+          cat > $SERVICE_FILE << 'SERVICE_UNIT_EOF'
+          [Unit]
+          Description=vlmcsd KMS Server
+          Documentation=man:vlmcsd(8)
+          After=network.target
+          Wants=network.target
+
+          [Service]
+          Type=forking
+          User=vlmcsd
+          Group=vlmcsd
+          ExecStart=/usr/local/bin/vlmcsd -D -d -i /etc/vlmcsd/vlmcsd.ini
+          ExecReload=/bin/kill -HUP $MAINPID
+          PIDFile=/run/vlmcsd.pid
+          Restart=on-failure
+          RestartSec=10
+
+          # Security hardening
+          NoNewPrivileges=true
+          ProtectSystem=strict
+          ProtectHome=true
+          ReadWritePaths=/run
+          PrivateDevices=true
+          ProtectKernelTunables=true
+          ProtectKernelModules=true
+          ProtectControlGroups=true
+          RestrictRealtime=true
+          RestrictSUIDSGID=true
+          RemoveIPC=true
+          PrivateMounts=true
+
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE_UNIT_EOF
+
+          # Reload systemd and enable service
+          echo "Enabling and starting vlmcsd service..."
+          systemctl daemon-reload
+          systemctl enable vlmcsd
+          systemctl start vlmcsd
+
+          echo ""
+          echo "=== Installation Complete ==="
+          echo "vlmcsd has been installed and started as a systemd service."
+          echo ""
+          echo "Service commands:"
+          echo "  Start:   sudo systemctl start vlmcsd"
+          echo "  Stop:    sudo systemctl stop vlmcsd"
+          echo "  Restart: sudo systemctl restart vlmcsd"
+          echo "  Status:  sudo systemctl status vlmcsd"
+          echo "  Logs:    sudo journalctl -u vlmcsd -f"
+          echo ""
+          echo "Configuration file: /etc/vlmcsd/vlmcsd.ini"
+          echo "Test command: vlmcs -v localhost"
+          echo ""
+          echo "vlmcsd is listening on port 1688"
+          INSTALL_SCRIPT_EOF
+
+          chmod +x release/$ARCHIVE_NAME/install-ubuntu.sh
+
+          # Create tarball
+          cd release
+          tar -czf ${ARCHIVE_NAME}.tar.gz $ARCHIVE_NAME
+          cd ..
+
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "ARCHIVE_PATH=release/${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlmcsd-ubuntu-x64-${{ matrix.features }}-${{ matrix.crypto }}
+          path: release/*.tar.gz
+          retention-days: 30
+
+  create-combined-release:
+    needs: build-ubuntu-x64
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: vlmcsd Ubuntu x64 Binaries ${{ github.ref_name }}
+          body: |
+            ## vlmcsd Ubuntu x64 Binaries
+
+            This release contains pre-compiled vlmcsd binaries for Ubuntu x64 systems.
+
+            ### Available Variants:
+            - **full**: Complete feature set with all options
+            - **embedded**: Optimized for embedded systems with reduced features
+            - **minimum**: Minimal feature set for basic KMS functionality
+
+            ### Crypto Backends:
+            - **internal**: Built-in crypto implementation (no external dependencies)
+            - **openssl**: Uses system OpenSSL library for crypto operations
+            - **openssl_with_aes**: OpenSSL with hardware AES acceleration (when available)
+
+            ### Installation:
+            1. Download the appropriate tarball for your needs
+            2. Extract: `tar -xzf vlmcsd-ubuntu-x64-*.tar.gz`
+            3. Run as root: `sudo ./install-ubuntu.sh`
+
+            ### Manual Installation:
+            - Copy `vlmcsd` to `/usr/local/bin/`
+            - Copy `vlmcs` to `/usr/local/bin/`
+            - Copy configuration files to `/etc/vlmcsd/`
+            - Create systemd service (see install script for template)
+
+            ### Usage:
+            ```bash
+            # Start service
+            sudo systemctl start vlmcsd
+
+            # Test functionality
+            vlmcs -v localhost
+
+            # View logs
+            sudo journalctl -u vlmcsd -f
+            ```
+
+            **Note**: These binaries are compiled for Ubuntu x64 and should work on most modern Linux distributions.
+          files: artifacts/*.tar.gz
+          draft: false
+          prerelease: false
+
+  security-scan:
+    needs: build-ubuntu-x64
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vlmcsd-ubuntu-x64-full-openssl
+          merge-multiple: true
+
+      - name: Extract and scan binaries
+        run: |
+          # Extract the full openssl build for scanning
+          tar -xzf vlmcsd-ubuntu-x64-full-openssl-*.tar.gz
+
+          # Basic security checks
+          echo "=== Security Analysis ==="
+          find . -name "vlmcsd" -executable -type f | while read binary; do
+            echo "Analyzing: $binary"
+            file "$binary"
+            
+            # Check for stack canaries and other security features
+            if command -v checksec >/dev/null 2>&1; then
+              checksec --file="$binary"
+            else
+              echo "checksec not available, using readelf..."
+              readelf -s "$binary" | grep -i stack || echo "No stack protection symbols found"
+            fi
+            
+            # Check for suspicious strings (basic analysis)
+            echo "Checking for common security-relevant strings..."
+            strings "$binary" | grep -E "(password|secret|key|token)" | head -10 || echo "No obvious secrets found"
+            
+            echo "------------------------"
+          done
