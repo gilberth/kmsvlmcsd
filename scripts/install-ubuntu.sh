@@ -361,16 +361,111 @@ SERVICE_EOF
 setup_firewall() {
     log_info "Configurando firewall..."
     
+    local firewall_configured=false
+    
+    # 1. Intentar UFW primero (más común en Ubuntu Desktop)
     if command -v ufw >/dev/null 2>&1; then
         if ufw status | grep -q "Status: active"; then
-            ufw allow 1688/tcp comment "KMS Server" >/dev/null
-            log_success "Regla UFW agregada para puerto 1688"
+            log_info "Detectado UFW activo, agregando regla..."
+            if ufw allow 1688/tcp comment "vlmcsd KMS Server" >/dev/null 2>&1; then
+                log_success "✓ Regla UFW agregada para puerto 1688"
+                firewall_configured=true
+            else
+                log_warning "⚠️ Error al agregar regla UFW"
+            fi
         else
-            log_info "UFW no está activo, omitiendo configuración de firewall"
+            log_info "UFW detectado pero inactivo"
         fi
-    else
-        log_info "UFW no está instalado, omitiendo configuración de firewall"
     fi
+    
+    # 2. Verificar iptables si UFW no está configurado
+    if ! $firewall_configured && command -v iptables >/dev/null 2>&1; then
+        log_info "Verificando configuración de iptables..."
+        
+        # Verificar si hay reglas iptables activas
+        if iptables -L INPUT -n | grep -q "REJECT\|DROP"; then
+            log_info "Detectadas reglas iptables restrictivas"
+            
+            # Verificar si ya existe regla para puerto 1688
+            if ! iptables -L INPUT -n | grep -q "dpt:1688"; then
+                log_info "Agregando regla iptables para puerto 1688..."
+                
+                # Encontrar la línea apropiada para insertar (antes de REJECT)
+                local reject_line=$(iptables -L INPUT --line-numbers -n | grep "REJECT\|DROP" | head -1 | awk '{print $1}')
+                
+                if [ -n "$reject_line" ]; then
+                    # Insertar regla antes de la primera regla REJECT/DROP
+                    if iptables -I INPUT "$reject_line" -p tcp --dport 1688 -j ACCEPT -m comment --comment "vlmcsd KMS Server" 2>/dev/null; then
+                        log_success "✓ Regla iptables agregada para puerto 1688"
+                        firewall_configured=true
+                        
+                        # Intentar hacer la regla persistente
+                        if command -v iptables-save >/dev/null 2>&1; then
+                            log_info "Intentando guardar reglas iptables..."
+                            
+                            # Crear directorio si no existe
+                            mkdir -p /etc/iptables
+                            
+                            # Guardar reglas
+                            if iptables-save > /etc/iptables/rules.v4 2>/dev/null; then
+                                log_success "✓ Reglas iptables guardadas en /etc/iptables/rules.v4"
+                                
+                                # Verificar si iptables-persistent está instalado
+                                if ! dpkg -l | grep -q iptables-persistent; then
+                                    log_info "Instalando iptables-persistent para persistencia..."
+                                    DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent >/dev/null 2>&1 || log_warning "⚠️ No se pudo instalar iptables-persistent"
+                                fi
+                            else
+                                log_warning "⚠️ No se pudieron guardar las reglas iptables"
+                            fi
+                        fi
+                    else
+                        log_warning "⚠️ Error al agregar regla iptables"
+                    fi
+                else
+                    # Si no hay reglas REJECT/DROP, agregar al final
+                    if iptables -A INPUT -p tcp --dport 1688 -j ACCEPT -m comment --comment "vlmcsd KMS Server" 2>/dev/null; then
+                        log_success "✓ Regla iptables agregada para puerto 1688"
+                        firewall_configured=true
+                    fi
+                fi
+            else
+                log_success "✓ Puerto 1688 ya está permitido en iptables"
+                firewall_configured=true
+            fi
+        else
+            log_info "iptables sin reglas restrictivas detectadas"
+            firewall_configured=true
+        fi
+    fi
+    
+    # 3. Verificar firewalld como alternativa
+    if ! $firewall_configured && command -v firewall-cmd >/dev/null 2>&1; then
+        if systemctl is-active firewalld >/dev/null 2>&1; then
+            log_info "Detectado firewalld activo, agregando regla..."
+            if firewall-cmd --permanent --add-port=1688/tcp >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1; then
+                log_success "✓ Regla firewalld agregada para puerto 1688"
+                firewall_configured=true
+            else
+                log_warning "⚠️ Error al agregar regla firewalld"
+            fi
+        fi
+    fi
+    
+    # 4. Resumen y advertencias
+    if $firewall_configured; then
+        log_success "Firewall configurado correctamente"
+    else
+        log_warning "⚠️ No se detectó firewall activo o no se pudo configurar"
+        log_info "El puerto 1688 debería estar accesible, pero verifica manualmente si es necesario"
+    fi
+    
+    # 5. Advertencia sobre Cloud Provider
+    log_info ""
+    log_info "📢 IMPORTANTE: Si usas un proveedor de cloud (AWS, GCP, Oracle, etc.):"
+    log_info "   También debes abrir el puerto 1688 en el Security Group/Firewall Rules"
+    log_info "   del proveedor en su consola web."
+    log_info ""
 }
 
 # Iniciar servicio
@@ -400,24 +495,104 @@ verify_installation() {
     
     # Verificar que el binario funciona
     if "$INSTALL_DIR/vlmcsd" -V >/dev/null 2>&1; then
-        log_success "Binario vlmcsd funcional"
+        log_success "✓ Binario vlmcsd funcional"
     else
-        log_warning "El binario vlmcsd puede tener problemas"
+        log_warning "⚠️ El binario vlmcsd puede tener problemas"
     fi
     
-    # Verificar conectividad
-    sleep 1
+    # Verificar conectividad local
+    sleep 2
     if "$INSTALL_DIR/vlmcs" -v localhost >/dev/null 2>&1; then
-        log_success "Servidor KMS respondiendo correctamente"
+        log_success "✓ Servidor KMS respondiendo localmente"
     else
-        log_warning "El servidor KMS puede no estar respondiendo"
+        log_warning "⚠️ El servidor KMS puede no estar respondiendo localmente"
     fi
     
     # Verificar puerto
     if netstat -tlnp 2>/dev/null | grep -q ":1688 "; then
-        log_success "Puerto 1688 abierto y escuchando"
+        log_success "✓ Puerto 1688 abierto y escuchando"
+        
+        # Mostrar en qué interfaces está escuchando
+        local listen_info=$(netstat -tlnp 2>/dev/null | grep ":1688 " | head -1)
+        if echo "$listen_info" | grep -q "0.0.0.0:1688"; then
+            log_success "✓ Escuchando en todas las interfaces (0.0.0.0)"
+        elif echo "$listen_info" | grep -q "127.0.0.1:1688"; then
+            log_warning "⚠️ Solo escuchando en localhost (127.0.0.1)"
+        fi
     else
-        log_warning "Puerto 1688 puede no estar abierto"
+        log_warning "⚠️ Puerto 1688 puede no estar abierto"
+    fi
+    
+    # Verificar configuración de firewall
+    log_info "Verificando configuración de firewall..."
+    
+    local firewall_status="desconocido"
+    
+    # Verificar UFW
+    if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+        if ufw status | grep -q "1688"; then
+            log_success "✓ Puerto 1688 permitido en UFW"
+            firewall_status="configurado"
+        else
+            log_warning "⚠️ Puerto 1688 NO está en reglas UFW"
+            firewall_status="bloqueado"
+        fi
+    # Verificar iptables
+    elif command -v iptables >/dev/null 2>&1; then
+        if iptables -L INPUT -n | grep -q "dpt:1688"; then
+            log_success "✓ Puerto 1688 permitido en iptables"
+            firewall_status="configurado"
+        elif iptables -L INPUT -n | grep -q "REJECT\|DROP"; then
+            log_warning "⚠️ iptables tiene reglas restrictivas, puerto 1688 puede estar bloqueado"
+            firewall_status="posiblemente bloqueado"
+        else
+            log_info "iptables sin reglas restrictivas detectadas"
+            firewall_status="abierto"
+        fi
+    # Verificar firewalld
+    elif command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active firewalld >/dev/null 2>&1; then
+        if firewall-cmd --list-ports | grep -q "1688/tcp"; then
+            log_success "✓ Puerto 1688 permitido en firewalld"
+            firewall_status="configurado"
+        else
+            log_warning "⚠️ Puerto 1688 NO está en firewalld"
+            firewall_status="bloqueado"
+        fi
+    fi
+    
+    # Obtener IP externa para testing
+    log_info "Obteniendo IP externa del servidor..."
+    local external_ip=""
+    
+    # Intentar varios métodos para obtener IP externa
+    for method in "curl -s ifconfig.me" "curl -s icanhazip.com" "curl -s ipecho.net/plain" "wget -qO- ifconfig.me"; do
+        external_ip=$(timeout 5 $method 2>/dev/null | head -1 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')
+        if [ -n "$external_ip" ]; then
+            break
+        fi
+    done
+    
+    if [ -n "$external_ip" ]; then
+        log_info "IP externa detectada: $external_ip"
+        
+        # Mostrar comandos de prueba
+        echo ""
+        log_info "🧪 Para probar conectividad externa, ejecuta desde otra máquina:"
+        echo "  telnet $external_ip 1688"
+        echo "  nc -zv $external_ip 1688"
+        echo "  vlmcs -v $external_ip"
+        echo ""
+        
+        if [ "$firewall_status" != "configurado" ] && [ "$firewall_status" != "abierto" ]; then
+            log_warning "⚠️ ATENCIÓN: El firewall puede estar bloqueando conexiones externas"
+            echo ""
+            log_info "💡 Para resolver problemas de conectividad:"
+            echo "  1. Verificar firewall local (iptables/ufw/firewalld)"
+            echo "  2. Verificar Security Group del proveedor de cloud"
+            echo "  3. Verificar que vlmcsd esté escuchando en 0.0.0.0:1688"
+        fi
+    else
+        log_warning "⚠️ No se pudo obtener la IP externa"
     fi
 }
 
