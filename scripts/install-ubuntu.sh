@@ -328,16 +328,15 @@ After=network.target
 Wants=network.target
 
 [Service]
-Type=forking
+Type=simple
 User=vlmcsd
 Group=vlmcsd
-ExecStart=/usr/local/bin/vlmcsd -D -d -i /etc/vlmcsd/vlmcsd.ini
+ExecStart=/usr/local/bin/vlmcsd -D -e -i /etc/vlmcsd/vlmcsd.ini
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/vlmcsd.pid
 Restart=on-failure
 RestartSec=10
 
-# Hardening de seguridad
+# Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
